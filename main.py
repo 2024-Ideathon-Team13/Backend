@@ -2,6 +2,7 @@ from fastapi import FastAPI, HTTPException
 from sqlalchemy import create_engine, Column, Integer, String, DateTime
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
+from fastapi import Depends
 from datetime import datetime
 from pydantic import BaseModel
 import pytz
@@ -66,7 +67,6 @@ async def generate_image(request: ImageRequest):
     image_url = generate_image_logic(request.content)
     return {"image_url": image_url}
 
-
 # @app.get("/")
 # def read_root():
 #     return {"message": "Hello, this is the DALL-E image generator API"}
@@ -97,7 +97,31 @@ def init_db():
     Base.metadata.create_all(bind=engine)
     logger.info("테이블 생성 완료")
 
-# 초기 데이터 삽입
+# 데이터베이스 의존성 함수
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
+@app.get("/photos/original")
+def read_original_photos(db: Session = Depends(get_db)):
+    return [photo.original_url for photo in db.query(Photo).all()]
+
+@app.get("/photos/dalle")
+def read_dalle_photos(db: Session = Depends(get_db)):
+    return [photo.dalle_url for photo in db.query(Photo).all()]
+
+
+# GET, id로 원본 사진과 달리 사진 조회
+@app.get("/photos/{photo_id}")
+def read_photos(photo_id: int, db: Session = Depends(get_db)):
+    photo = db.query(Photo).filter(Photo.id == photo_id).first()
+    if not photo:
+        raise HTTPException(status_code=404, detail="사진을 찾을 수 없습니다")
+    return {"original_photo": photo.original_url, "dalle_photo": photo.dalle_url}
+
 def insert_initial_data():
     db: Session = SessionLocal()
     try:
