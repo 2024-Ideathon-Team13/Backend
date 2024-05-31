@@ -1,0 +1,14 @@
+# Backend
+
+.idea
+*.pyc
+__pycache__
+migrations
+alembic.ini
+.env
+logs
+.deta
+db_data
+backend/venv
+.vscode
+env
