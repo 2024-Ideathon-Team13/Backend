@@ -40,7 +40,7 @@ def init_db():
     Base.metadata.create_all(bind=engine)
     logger.info("테이블 생성 완료")
 
-# 초기 데이터 삽입
+# 초기 데이터 삽입k
 def insert_initial_data():
     db: Session = SessionLocal()
     try:
