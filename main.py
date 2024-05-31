@@ -10,16 +10,19 @@ import os
 from dotenv import load_dotenv
 from logger import logger
 import sys
-import openai
 import boto3
-
+from openai import OpenAI
+from PIL import Image
+from io import BytesIO
+from fastapi import UploadFile
+from fastapi.responses import FileResponse
 
 app = FastAPI()
 
 # 환경 변수 로드
 load_dotenv()
-openai.api_key = os.getenv("OPENAI_API_KEY")
 
+client = OpenAI(api_key = os.getenv("OPENAI_API_KEY") )
 # S3 클라이언트 설정
 s3_client = boto3.client(
     's3',
@@ -39,23 +42,41 @@ async def test_s3_connection():
         raise HTTPException(status_code=500, detail="Failed to connect to S3")
 
 # 이미지 생성 로직
-def generate_image_logic(content):
+# def generate_image_logic(content: str):
+#     try:
+#         response = client.images.generate(
+#             model="dall-e-3",
+#             prompt="A sunlit indoor lounge area with a pool with clear water"
+#             "and another pool with translucent pastel pink water, next"
+#             " to a big window, digital art",
+#             size="1024x1024",
+#             quality="standard",
+#             n=1,
+#         )
+#         return response.data[0].url
+#     except Exception as e:
+#         raise HTTPException(status_code=500, detail=str(e))
+
+# 이미지 생성 로직
+def generate_image_logic(image: UploadFile):
     try:
-        prompt_keyword = """Design: a detailed digital illustration drawn with bright colors and clean lines. Please make the following images according to the previous requirements: """
+        # 업로드된 이미지를 메모리에 로드
+        image_bytes = image.file.read()
+        image = Image.open(BytesIO(image_bytes))
+
+        # 이미지를 처리하고, 이를 기반으로 텍스트 프롬프트 생성
+        # 여기서는 간단히 프롬프트를 하드코딩하였습니다. 실제 구현에서는 이미지 특징을 분석하여 프롬프트 생성 필요
+        prompt = "An animated version of various iconic Korean scenes, including Gyeongbokgung Palace, Han River at night, Dol Hareubang statue by the sea in Jeju Island, a horse in a grassy field with a stone wall in Jeju Island, Hallasan mountain and its crater lake on Jeju Island, a traditional Korean gate in a city setting, a riverside path lined with cherry blossom trees, and a large airport with multiple airplanes. Each scene is vibrant, colorful, and depicted in a whimsical, cartoonish manner with exaggerated features and bright colors, suitable for an animated movie or children's storybook."
 
         response = openai.Image.create(
             model="dall-e-3",
-            size="1024x1024",
-            quality="standard",
-            prompt="""
-                When generating an image, be sure to observe the following conditions: Do not add text to the image. 
-                I want an illustration image, not contain text in the image.
-                """ + prompt_keyword + content,
-            n=1
+            prompt=prompt,
+            n=1,
+            size="1024x1024"
         )
+
         return response['data'][0]['url']
     except Exception as e:
-        logger.error(f"Image generation failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 # 요청 모델 정의
@@ -67,9 +88,9 @@ async def generate_image(request: ImageRequest):
     image_url = generate_image_logic(request.content)
     return {"image_url": image_url}
 
-# @app.get("/")
-# def read_root():
-#     return {"message": "Hello, this is the DALL-E image generator API"}
+@app.get("/")
+def read_root():
+    return {"message": "Hello, this is the DALL-E image generator API"}
 
 # 한국 시간대 설정
 kst = pytz.timezone('Asia/Seoul')
@@ -112,7 +133,6 @@ def read_original_photos(db: Session = Depends(get_db)):
 @app.get("/photos/dalle")
 def read_dalle_photos(db: Session = Depends(get_db)):
     return [photo.dalle_url for photo in db.query(Photo).all()]
-
 
 # GET, id로 원본 사진과 달리 사진 조회
 @app.get("/photos/{photo_id}")
@@ -161,6 +181,6 @@ except Exception as e:
     logger.info(e)
     sys.exit(1)
 
-@app.get("/")
-def hello():
-    return {"message": "메인페이지입니다"}
+# @app.get("/")
+# def hello():
+#     return {"message": "메인페이지입니다"}
